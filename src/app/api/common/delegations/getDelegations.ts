@@ -11,7 +11,7 @@ import {
   PaginationParams,
 } from "@/app/lib/pagination";
 import { TENANT_NAMESPACES } from "@/lib/constants";
-import { Decimal } from "@prisma/client/runtime";
+import { Prisma } from '@prisma/client'
 
 /**
  * Delegations for a given address (addresses the given address is delegating to)
@@ -242,7 +242,7 @@ async function getCurrentDelegatorsForAddress({
         {
           from: string;
           to: string;
-          allowance: Decimal;
+          allowance: Prisma.Decimal;
           type: "DIRECT" | "ADVANCED";
           block_number: bigint;
           amount: "FULL" | "PARTIAL";
