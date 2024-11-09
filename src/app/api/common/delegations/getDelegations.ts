@@ -11,7 +11,7 @@ import {
   PaginationParams,
 } from "@/app/lib/pagination";
 import { TENANT_NAMESPACES } from "@/lib/constants";
-import { Prisma } from '@prisma/client'
+import { Prisma } from "@prisma/client";
 
 /**
  * Delegations for a given address (addresses the given address is delegating to)
@@ -19,6 +19,101 @@ import { Prisma } from '@prisma/client'
  */
 const getCurrentDelegatees = (addressOrENSName: string) =>
   addressOrEnsNameWrap(getCurrentDelegateesForAddress, addressOrENSName);
+
+async function getDelagatee({
+  namespace,
+  address,
+  contract,
+}: {
+  namespace: string;
+  address: string;
+  contract: string;
+}) {
+  const condition = {
+    where: {
+      delegator: address.toLowerCase(),
+      contract,
+    },
+  };
+
+  switch (namespace) {
+    case TENANT_NAMESPACES.OPTIMISM:
+      return await prisma.optimismDelegatees.findFirst(condition);
+    case TENANT_NAMESPACES.ENS:
+      return await prisma.ensDelegatees.findFirst(condition);
+    case TENANT_NAMESPACES.ETHERFI:
+      return await prisma.etherfiDelegatees.findFirst(condition);
+    case TENANT_NAMESPACES.UNISWAP:
+      return await prisma.uniswapDelegatees.findFirst(condition);
+    case TENANT_NAMESPACES.CYBER:
+      return await prisma.cyberDelegatees.findFirst(condition);
+    case TENANT_NAMESPACES.SCROLL:
+      return await prisma.scrollDelegatees.findFirst(condition);
+    case TENANT_NAMESPACES.DERIVE:
+      return await prisma.deriveDelegatees.findFirst(condition);
+    case TENANT_NAMESPACES.PGUILD:
+      return await prisma.pguildDelegatees.findFirst(condition);
+    default:
+      throw new Error(`Unknown namespace: ${namespace}`);
+  }
+}
+
+async function getAdvancedDelegatee({
+  namespace,
+  address,
+  contract,
+  partial,
+}: {
+  namespace: string;
+  address: string;
+  contract?: string;
+  partial?: boolean;
+}) {
+  const condition = {
+    where: {
+      from: address.toLowerCase(),
+      delegated_amount: { gt: 0 },
+      contract,
+    },
+  };
+
+  switch (namespace) {
+    case TENANT_NAMESPACES.OPTIMISM:
+      return await prisma.optimismAdvancedDelegatees.findMany(
+        partial ? undefined : condition
+      );
+    case TENANT_NAMESPACES.ENS:
+      return await prisma.ensAdvancedDelegatees.findMany(
+        partial ? undefined : condition
+      );
+    case TENANT_NAMESPACES.ETHERFI:
+      return await prisma.etherfiAdvancedDelegatees.findMany(
+        partial ? undefined : condition
+      );
+    case TENANT_NAMESPACES.UNISWAP:
+      return await prisma.uniswapAdvancedDelegatees.findMany(
+        partial ? undefined : condition
+      );
+    case TENANT_NAMESPACES.CYBER:
+      return await prisma.cyberAdvancedDelegatees.findMany(
+        partial ? undefined : condition
+      );
+    case TENANT_NAMESPACES.SCROLL:
+      return await prisma.scrollAdvancedDelegatees.findMany(
+        partial ? undefined : condition
+      );
+    case TENANT_NAMESPACES.DERIVE:
+      return await prisma.deriveAdvancedDelegatees.findMany(
+        partial ? undefined : condition
+      );
+    case TENANT_NAMESPACES.PGUILD:
+      return await prisma.pguildAdvancedDelegatees.findMany(
+        partial ? undefined : condition
+      );
+    default:
+      throw new Error(`Unknown namespace: ${namespace}`);
+  }
+}
 
 async function getCurrentDelegateesForAddress({
   address,
@@ -28,11 +123,10 @@ async function getCurrentDelegateesForAddress({
   const { namespace, contracts } = Tenant.current();
 
   const getDirectDelegatee = async () => {
-    const delegatee = await prisma[`${namespace}Delegatees`].findFirst({
-      where: {
-        delegator: address.toLowerCase(),
-        contract: contracts.token.address,
-      },
+    const delegatee = await getDelagatee({
+      namespace,
+      address,
+      contract: contracts.token.address,
     });
 
     if (namespace === TENANT_NAMESPACES.OPTIMISM) {
@@ -44,38 +138,25 @@ async function getCurrentDelegateesForAddress({
     return delegatee;
   };
 
-  const getAdvancedDelegatee = async () => {
-    const delegatees = await prisma[`${namespace}AdvancedDelegatees`].findMany({
-      where: {
-        from: address.toLowerCase(),
-        delegated_amount: { gt: 0 },
-        contract: contracts.alligator?.address,
-      },
-    });
-    return delegatees;
-  };
-
-  const getPartialDelegatee = async () => {
-    const delegatees = await prisma[`${namespace}AdvancedDelegatees`].findMany({
-      where: {
-        from: address.toLowerCase(),
-        delegated_amount: { gt: 0 },
-        contract: contracts.token.address,
-      },
-    });
-    return delegatees;
-  };
-
   let advancedDelegatees;
   let directDelegatee;
 
   // Should be if governor == Agora 1.0 w/ Partial Delegation On
   if (namespace === TENANT_NAMESPACES.SCROLL) {
-    advancedDelegatees = await getPartialDelegatee();
+    advancedDelegatees = await getAdvancedDelegatee({
+      namespace,
+      address,
+      contract: contracts.token.address,
+      partial: true,
+    });
     directDelegatee = null;
   } else {
     [advancedDelegatees, directDelegatee] = await Promise.all([
-      getAdvancedDelegatee(),
+      getAdvancedDelegatee({
+        namespace,
+        address,
+        contract: contracts.token.address,
+      }),
       getDirectDelegatee(),
     ]);
   }
@@ -318,12 +399,10 @@ async function getCurrentAdvancedDelegatorsForAddress({
   const { namespace, contracts } = Tenant.current();
 
   const [advancedDelegators, latestBlock] = await Promise.all([
-    prisma[`${namespace}AdvancedDelegatees`].findMany({
-      where: {
-        to: address.toLowerCase(),
-        delegated_amount: { gt: 0 },
-        contract: contracts.alligator?.address,
-      },
+    getAdvancedDelegatee({
+      namespace,
+      address,
+      contract: contracts.alligator?.address,
     }),
     contracts.token.provider.getBlock("latest"),
   ]);
@@ -359,11 +438,10 @@ const getDirectDelegateeForAddress = async ({
 }) => {
   const { namespace, contracts } = Tenant.current();
 
-  const delegatee = await prisma[`${namespace}Delegatees`].findFirst({
-    where: {
-      delegator: address.toLowerCase(),
-      contract: contracts.token.address.toLowerCase(),
-    },
+  const delegatee = await getDelagatee({
+    namespace,
+    address,
+    contract: contracts.token.address.toLowerCase(),
   });
 
   if (namespace === TENANT_NAMESPACES.OPTIMISM) {
