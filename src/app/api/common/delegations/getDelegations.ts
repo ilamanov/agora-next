@@ -12,6 +12,7 @@ import {
 } from "@/app/lib/pagination";
 import { TENANT_NAMESPACES } from "@/lib/constants";
 import { Prisma } from "@prisma/client";
+import { findAdvancedDelegatee, findDelagatee } from "@/lib/prismaUtils";
 
 /**
  * Delegations for a given address (addresses the given address is delegating to)
@@ -19,101 +20,6 @@ import { Prisma } from "@prisma/client";
  */
 const getCurrentDelegatees = (addressOrENSName: string) =>
   addressOrEnsNameWrap(getCurrentDelegateesForAddress, addressOrENSName);
-
-async function getDelagatee({
-  namespace,
-  address,
-  contract,
-}: {
-  namespace: string;
-  address: string;
-  contract: string;
-}) {
-  const condition = {
-    where: {
-      delegator: address.toLowerCase(),
-      contract,
-    },
-  };
-
-  switch (namespace) {
-    case TENANT_NAMESPACES.OPTIMISM:
-      return await prisma.optimismDelegatees.findFirst(condition);
-    case TENANT_NAMESPACES.ENS:
-      return await prisma.ensDelegatees.findFirst(condition);
-    case TENANT_NAMESPACES.ETHERFI:
-      return await prisma.etherfiDelegatees.findFirst(condition);
-    case TENANT_NAMESPACES.UNISWAP:
-      return await prisma.uniswapDelegatees.findFirst(condition);
-    case TENANT_NAMESPACES.CYBER:
-      return await prisma.cyberDelegatees.findFirst(condition);
-    case TENANT_NAMESPACES.SCROLL:
-      return await prisma.scrollDelegatees.findFirst(condition);
-    case TENANT_NAMESPACES.DERIVE:
-      return await prisma.deriveDelegatees.findFirst(condition);
-    case TENANT_NAMESPACES.PGUILD:
-      return await prisma.pguildDelegatees.findFirst(condition);
-    default:
-      throw new Error(`Unknown namespace: ${namespace}`);
-  }
-}
-
-async function getAdvancedDelegatee({
-  namespace,
-  address,
-  contract,
-  partial,
-}: {
-  namespace: string;
-  address: string;
-  contract?: string;
-  partial?: boolean;
-}) {
-  const condition = {
-    where: {
-      from: address.toLowerCase(),
-      delegated_amount: { gt: 0 },
-      contract,
-    },
-  };
-
-  switch (namespace) {
-    case TENANT_NAMESPACES.OPTIMISM:
-      return await prisma.optimismAdvancedDelegatees.findMany(
-        partial ? undefined : condition
-      );
-    case TENANT_NAMESPACES.ENS:
-      return await prisma.ensAdvancedDelegatees.findMany(
-        partial ? undefined : condition
-      );
-    case TENANT_NAMESPACES.ETHERFI:
-      return await prisma.etherfiAdvancedDelegatees.findMany(
-        partial ? undefined : condition
-      );
-    case TENANT_NAMESPACES.UNISWAP:
-      return await prisma.uniswapAdvancedDelegatees.findMany(
-        partial ? undefined : condition
-      );
-    case TENANT_NAMESPACES.CYBER:
-      return await prisma.cyberAdvancedDelegatees.findMany(
-        partial ? undefined : condition
-      );
-    case TENANT_NAMESPACES.SCROLL:
-      return await prisma.scrollAdvancedDelegatees.findMany(
-        partial ? undefined : condition
-      );
-    case TENANT_NAMESPACES.DERIVE:
-      return await prisma.deriveAdvancedDelegatees.findMany(
-        partial ? undefined : condition
-      );
-    case TENANT_NAMESPACES.PGUILD:
-      return await prisma.pguildAdvancedDelegatees.findMany(
-        partial ? undefined : condition
-      );
-    default:
-      throw new Error(`Unknown namespace: ${namespace}`);
-  }
-}
 
 async function getCurrentDelegateesForAddress({
   address,
@@ -123,7 +29,7 @@ async function getCurrentDelegateesForAddress({
   const { namespace, contracts } = Tenant.current();
 
   const getDirectDelegatee = async () => {
-    const delegatee = await getDelagatee({
+    const delegatee = await findDelagatee({
       namespace,
       address,
       contract: contracts.token.address,
@@ -143,7 +49,7 @@ async function getCurrentDelegateesForAddress({
 
   // Should be if governor == Agora 1.0 w/ Partial Delegation On
   if (namespace === TENANT_NAMESPACES.SCROLL) {
-    advancedDelegatees = await getAdvancedDelegatee({
+    advancedDelegatees = await findAdvancedDelegatee({
       namespace,
       address,
       contract: contracts.token.address,
@@ -152,7 +58,7 @@ async function getCurrentDelegateesForAddress({
     directDelegatee = null;
   } else {
     [advancedDelegatees, directDelegatee] = await Promise.all([
-      getAdvancedDelegatee({
+      findAdvancedDelegatee({
         namespace,
         address,
         contract: contracts.token.address,
@@ -399,7 +305,7 @@ async function getCurrentAdvancedDelegatorsForAddress({
   const { namespace, contracts } = Tenant.current();
 
   const [advancedDelegators, latestBlock] = await Promise.all([
-    getAdvancedDelegatee({
+    findAdvancedDelegatee({
       namespace,
       address,
       contract: contracts.alligator?.address,
@@ -438,7 +344,7 @@ const getDirectDelegateeForAddress = async ({
 }) => {
   const { namespace, contracts } = Tenant.current();
 
-  const delegatee = await getDelagatee({
+  const delegatee = await findDelagatee({
     namespace,
     address,
     contract: contracts.token.address.toLowerCase(),
