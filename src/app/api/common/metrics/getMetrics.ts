@@ -3,6 +3,31 @@ import Tenant from "@/lib/tenant/tenant";
 import { cache } from "react";
 import { IMembershipContract } from "@/lib/contracts/common/interfaces/IMembershipContract";
 import { getPublicClient } from "@/lib/viem";
+import { TENANT_NAMESPACES } from "@/lib/constants";
+
+async function getVotableSupply({ namespace }: { namespace: string }) {
+  switch (namespace) {
+    case TENANT_NAMESPACES.OPTIMISM:
+      return await prisma.optimismVotableSupply.findFirst({});
+    case TENANT_NAMESPACES.ENS:
+      return await prisma.ensVotableSupply.findFirst({});
+    case TENANT_NAMESPACES.ETHERFI:
+      return await prisma.etherfiVotableSupply.findFirst({});
+    case TENANT_NAMESPACES.UNISWAP:
+      return await prisma.uniswapVotableSupply.findFirst({});
+    case TENANT_NAMESPACES.CYBER:
+      return await prisma.cyberVotableSupply.findFirst({});
+    case TENANT_NAMESPACES.SCROLL:
+      return await prisma.scrollVotableSupply.findFirst({});
+    case TENANT_NAMESPACES.DERIVE:
+      return await prisma.deriveVotableSupply.findFirst({});
+    case TENANT_NAMESPACES.PGUILD:
+      return await prisma.pguildVotableSupply.findFirst({});
+    default:
+      throw new Error(`Unknown namespace: ${namespace}`);
+  }
+}
+
 async function getMetrics() {
   const { namespace, contracts } = Tenant.current();
 
@@ -19,9 +44,8 @@ async function getMetrics() {
       totalSupply = 0;
     }
 
-    const votableSupply = await prisma[`${namespace}VotableSupply`].findFirst(
-      {}
-    );
+    const votableSupply = await getVotableSupply({ namespace });
+
     return {
       votableSupply: votableSupply?.votable_supply || "0",
       totalSupply: totalSupply.toString(),
